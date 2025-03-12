@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "me.Thelnfamous1.ip_command_stick.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "${mod_id}.refmap.json",
+  "mixins": [
+    "CommandStickItemMixin"
+  ],
+  "client": [
+  ],
+  "minVersion": "0.8.5"
+}

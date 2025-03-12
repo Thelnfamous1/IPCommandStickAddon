@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "key": {
+    "N": {
+      "item": "minecraft:netherite_ingot"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "pattern": [
+    " N ",
+    " S ",
+    " N "
+  ],
+  "result": {
+    "item": "immersive_portals:command_stick"
+  },
+  "show_notification": true
+}

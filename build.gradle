@@ -149,6 +149,16 @@ minecraft {
     }
 }
 
+mixin {
+    add sourceSets.main, "${mod_id}.refmap.json"
+
+    // Sets up the mixin config; this gets added to run configurations and the manifest in the final jar
+    config "${mod_id}.mixins.json"
+
+    // Enables exporting mixin-changed classes to .mixin.out in the run folder
+    debug.export = true
+}
+
 configurations {
     datagenCompileClasspath.extendsFrom compileClasspath
     datagenRuntimeClasspath.extendsFrom runtimeClasspath
@@ -177,6 +187,14 @@ repositories {
     // flatDir {
     //     dir 'libs'
     // }
+    maven {
+        url "https://cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
+    maven { url "https://maven.shedaniel.me/" }
+
 }
 
 dependencies {
@@ -188,6 +206,9 @@ dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
     datagenImplementation sourceSets.main.output
+
+    // Mixin annotation processor - generates the refmap
+    annotationProcessor "org.spongepowered:mixin:${mixin_version}:processor"
 
     // Example mod dependency with JEI - using fg.deobf() ensures the dependency is remapped to your development mappings
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
@@ -203,6 +224,10 @@ dependencies {
     // For more info:
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
+    implementation fg.deobf("curse.maven:immersive-portals-for-forge-355440:6284015")
+
+    // Cloth config
+    implementation fg.deobf("me.shedaniel.cloth:cloth-config-forge:${project.cloth_config_version}")
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -215,11 +240,12 @@ tasks.withType(ProcessResources).configureEach {
         forge_version: forge_version, forge_version_range: forge_version_range,
         loader_version_range: loader_version_range,
         mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
-        mod_authors: mod_authors, mod_description: mod_description
+        mod_authors: mod_authors, mod_description: mod_description,
+        immersive_portals_version_range: immersive_portals_version_range,
     ]
     inputs.properties replaceProperties
 
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta', "${mod_id}.mixins.json".toString()]) {
         expand replaceProperties + [project: project]
     }
 }

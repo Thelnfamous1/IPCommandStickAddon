@@ -1,0 +1,6 @@
+{
+  "ip_command_stick.command_stick.edit": "Edit %s",
+  "ip_command_stick.command_stick.error.command_type_blacklisted": "%s is blacklisted from being applied to the %s.",
+  "ip_command_stick.command_stick.error.invalid_command_type": "Invalid %s command type: %s",
+  "ip_command_stick.command_stick.error.not_holding_command_stick": "You must be holding a %s to edit its command type."
+}
