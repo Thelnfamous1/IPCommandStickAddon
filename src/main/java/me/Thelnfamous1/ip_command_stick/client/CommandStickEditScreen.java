@@ -58,7 +58,7 @@ public class CommandStickEditScreen extends Screen {
             return narrationMessage;
          }
       };
-      //this.commandEdit.setCanLoseFocus(false);
+      this.commandEdit.setCanLoseFocus(false);
       this.commandEdit.setTextColor(-1);
       this.commandEdit.setTextColorUneditable(-1);
       this.commandEdit.setBordered(false);
@@ -66,13 +66,11 @@ public class CommandStickEditScreen extends Screen {
       this.commandEdit.setResponder(this::onEdited);
       this.commandEdit.setValue(this.command);
       this.addWidget(this.commandEdit);
-      this.setInitialFocus(this.commandEdit);
       // Command Suggestions
-      /*
-      this.commandSuggestions = new CommandStickSuggestions(this.minecraft, this, this.commandEdit, this.font, true, 0, 7, false, Integer.MIN_VALUE);
+      this.commandSuggestions = new CommandStickSuggestions(this.minecraft, this, this.commandEdit, this.font, false, true, 0, 7, false, Integer.MIN_VALUE);
       this.commandSuggestions.setAllowSuggestions(true);
       this.commandSuggestions.updateCommandInfo();
-       */
+      this.setInitialFocus(this.commandEdit);
    }
 
    private void onDone() {
@@ -107,7 +105,9 @@ public class CommandStickEditScreen extends Screen {
 
    private void onEdited(String command) {
       this.command = command;
-      if(this.commandSuggestions != null) this.commandSuggestions.updateCommandInfo();
+      if(this.commandSuggestions != null){
+         this.commandSuggestions.updateCommandInfo();
+      }
    }
 
    @Override
@@ -127,9 +127,9 @@ public class CommandStickEditScreen extends Screen {
    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
       this.renderBackground(guiGraphics);
       this.renderBg(guiGraphics, partialTick, mouseX, mouseY);
-      super.render(guiGraphics, mouseX, mouseY, partialTick);
       guiGraphics.drawString(this.font, this.title, this.leftPos + this.titleLabelX, this.topPos + this.titleLabelY, 4210752, false);
       this.commandEdit.render(guiGraphics, mouseX, mouseY, partialTick);
+      super.render(guiGraphics, mouseX, mouseY, partialTick);
       if(this.commandSuggestions != null) this.commandSuggestions.render(guiGraphics, mouseX, mouseY);
    }
 

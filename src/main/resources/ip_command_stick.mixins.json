@@ -7,6 +7,7 @@
     "CommandStickItemMixin"
   ],
   "client": [
+    "client.EditBoxAccess"
   ],
   "minVersion": "0.8.5"
 }

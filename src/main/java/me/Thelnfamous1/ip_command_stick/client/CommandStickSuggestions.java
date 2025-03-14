@@ -1,5 +1,6 @@
 package me.Thelnfamous1.ip_command_stick.client;
 
+import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -24,6 +25,8 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.tree.CommandNode;
 import com.mojang.brigadier.tree.LiteralCommandNode;
+import me.Thelnfamous1.ip_command_stick.IPCommandStickMod;
+import me.Thelnfamous1.ip_command_stick.mixin.client.EditBoxAccess;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -41,6 +44,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec2;
+import net.minecraftforge.registries.RegistryObject;
 import org.lwjgl.glfw.GLFW;
 import qouteall.imm_ptl.peripheral.CommandStickItem;
 
@@ -53,6 +57,7 @@ public class CommandStickSuggestions {
    private final Screen screen;
    final EditBox input;
    final Font font;
+   private final boolean commandsOnly;
    private final boolean onlyShowIfCursorPastError;
    final int lineStartOffset;
    final int suggestionLineLimit;
@@ -70,11 +75,12 @@ public class CommandStickSuggestions {
    private boolean allowSuggestions;
    boolean keepSuggestions;
 
-   public CommandStickSuggestions(Minecraft pMinecraft, Screen pScreen, EditBox pInput, Font pFont, boolean pOnlyShowIfCursorPastError, int pLineStartOffset, int pSuggestionLineLimit, boolean pAnchorToBottom, int pFillColor) {
+   public CommandStickSuggestions(Minecraft pMinecraft, Screen pScreen, EditBox pInput, Font pFont, boolean pCommandsOnly, boolean pOnlyShowIfCursorPastError, int pLineStartOffset, int pSuggestionLineLimit, boolean pAnchorToBottom, int pFillColor) {
       this.minecraft = pMinecraft;
       this.screen = pScreen;
       this.input = pInput;
       this.font = pFont;
+      this.commandsOnly = pCommandsOnly;
       this.onlyShowIfCursorPastError = pOnlyShowIfCursorPastError;
       this.lineStartOffset = pLineStartOffset;
       this.suggestionLineLimit = pSuggestionLineLimit;
@@ -114,15 +120,15 @@ public class CommandStickSuggestions {
       if (this.pendingSuggestions != null && this.pendingSuggestions.isDone()) {
          Suggestions suggestions = this.pendingSuggestions.join();
          if (!suggestions.isEmpty()) {
-            int i = 0;
+            int width = 0;
 
             for(Suggestion suggestion : suggestions.getList()) {
-               i = Math.max(i, this.font.width(suggestion.getText()));
+               width = Math.max(width, this.font.width(suggestion.getText()));
             }
 
-            int j = Mth.clamp(this.input.getScreenX(suggestions.getRange().getStart()), 0, this.input.getScreenX(0) + this.input.getInnerWidth() - i);
-            int k = this.anchorToBottom ? this.screen.height - 12 : 72;
-            this.suggestions = new CommandStickSuggestions.SuggestionsList(j, k, i, this.sortSuggestions(suggestions), pNarrateFirstSuggestion);
+            int xPos = Mth.clamp(this.input.getScreenX(suggestions.getRange().getStart()), 0, this.input.getScreenX(0) + this.input.getInnerWidth() - width);
+            int yPos = this.anchorToBottom ? this.screen.height - 12 : this.getInputBottomY();
+            this.suggestions = new CommandStickSuggestions.SuggestionsList(xPos, yPos, width, this.sortSuggestions(suggestions), pNarrateFirstSuggestion);
          }
       }
 
@@ -140,7 +146,7 @@ public class CommandStickSuggestions {
       List<Suggestion> list1 = Lists.newArrayList();
 
       for(Suggestion suggestion : pSuggestions.getList()) {
-         if (!suggestion.getText().startsWith(s1) && !suggestion.getText().startsWith("minecraft:" + s1)) {
+         if (!suggestion.getText().startsWith(s1) && !suggestion.getText().startsWith(IPCommandStickMod.IMM_PTL_MODID + ":" + s1)) {
             list1.add(suggestion);
          } else {
             list.add(suggestion);
@@ -169,7 +175,7 @@ public class CommandStickSuggestions {
          stringreader.skip();
       }
 
-      boolean suggestCommands = /*this.commandsOnly ||*/ flag;
+      boolean suggestCommands = /*this.commandsOnly || flag*/false; // TODO: Future support for applying any command to the stick?
       int cursorPosition = this.input.getCursorPosition();
       if (suggestCommands) {
          CommandDispatcher<SharedSuggestionProvider> commanddispatcher = this.minecraft.player.connection.getCommands();
@@ -189,9 +195,43 @@ public class CommandStickSuggestions {
       } else {
          String s1 = currentInput.substring(0, cursorPosition);
          int lastWordIndex = getLastWordIndex(s1);
-         Collection<String> collection = CommandStickItem.REGISTRY.get().getKeys().stream().map(ResourceLocation::toString).toList();
-         this.pendingSuggestions = SharedSuggestionProvider.suggest(collection, new SuggestionsBuilder(s1, lastWordIndex));
+         this.pendingSuggestions = SharedSuggestionProvider.suggestResource(CommandStickItem.REGISTRY.get().getValues(), new SuggestionsBuilder(s1, lastWordIndex), CommandStickItem.REGISTRY.get()::getKey, (data) -> {
+            return /*CommonComponents.joinLines(createTooltipLines(data))*/ Component.translatable(data.nameTranslationKey);
+         });
+         this.pendingSuggestions.thenRun(() -> {
+            if (this.pendingSuggestions.isDone()) {
+               this.updateSuggestions();
+            }
+         });
+         /*
+         IPCommandStickMod.LOGGER.info("Collected {} command stick command types", collection.size());
+         for(Suggestion suggestion : this.pendingSuggestions.join().getList()){
+            IPCommandStickMod.LOGGER.info("Suggesting command stick command type {}", suggestion.getText());
+         }
+          */
       }
+   }
+
+   private static List<Component> createTooltipLines(CommandStickItem.Data data){
+      List<Component> tooltipLines = new ArrayList<>();
+      tooltipLines.add(Component.translatable(data.nameTranslationKey));
+
+      Iterable<String> splitCommand = Splitter.fixedLength(40).split(data.command);
+      Iterator<String> splitCommandIterator = splitCommand.iterator();
+
+      String descriptionTranslationKey;
+      while(splitCommandIterator.hasNext()) {
+         descriptionTranslationKey = splitCommandIterator.next();
+         tooltipLines.add(Component.literal(descriptionTranslationKey).withStyle(ChatFormatting.GOLD));
+      }
+
+      splitCommandIterator = data.descriptionTranslationKeys.iterator();
+
+      while(splitCommandIterator.hasNext()) {
+         descriptionTranslationKey = splitCommandIterator.next();
+         tooltipLines.add(Component.translatable(descriptionTranslationKey).withStyle(ChatFormatting.AQUA));
+      }
+      return tooltipLines;
    }
 
    private static int getLastWordIndex(String pText) {
@@ -242,11 +282,15 @@ public class CommandStickSuggestions {
          this.commandUsage.add(getExceptionMessage(Commands.getParseException(this.currentParse)));
       }
 
+      this.updateSuggestions();
+
+   }
+
+   private void updateSuggestions() {
       this.suggestions = null;
       if (this.allowSuggestions && this.minecraft.options.autoSuggestions().get()) {
          this.showSuggestions(false);
       }
-
    }
 
    private boolean fillNodeUsage(ChatFormatting pChatFormatting) {
@@ -342,12 +386,19 @@ public class CommandStickSuggestions {
       int i = 0;
 
       for(FormattedCharSequence formattedcharsequence : this.commandUsage) {
-         int j = this.anchorToBottom ? this.screen.height - 14 - 13 - 12 * i : 72 + 12 * i;
-         pGuiGraphics.fill(this.commandUsagePosition - 1, j, this.commandUsagePosition + this.commandUsageWidth + 1, j + 12, this.fillColor);
-         pGuiGraphics.drawString(this.font, formattedcharsequence, this.commandUsagePosition, j + 2, -1);
+         int inputBottomY = this.getInputBottomY();
+         int suggestionY = this.anchorToBottom ? this.screen.height - 14 - 13 - 12 * i : inputBottomY + (12 * i);
+         pGuiGraphics.fill(this.commandUsagePosition - 1, suggestionY, this.commandUsagePosition + this.commandUsageWidth + 1, suggestionY + 12, this.fillColor);
+         pGuiGraphics.drawString(this.font, formattedcharsequence, this.commandUsagePosition, suggestionY + 2, -1);
          ++i;
       }
 
+   }
+
+   private int getInputBottomY() {
+      boolean bordered = ((EditBoxAccess)this.input).ip_command_stick$isBordered();
+      int inputY = bordered ? this.input.getY() + ((this.input.getHeight() - 8) / 2) : this.input.getY();
+      return inputY + this.input.getHeight();
    }
 
    public Component getNarrationMessage() {
@@ -365,9 +416,9 @@ public class CommandStickSuggestions {
       private int lastNarratedEntry;
 
       SuggestionsList(int pXPos, int pYPos, int pWidth, List<Suggestion> pSuggestionList, boolean pNarrateFirstSuggestion) {
-         int i = pXPos - 1;
-         int j = CommandStickSuggestions.this.anchorToBottom ? pYPos - 3 - Math.min(pSuggestionList.size(), CommandStickSuggestions.this.suggestionLineLimit) * 12 : pYPos;
-         this.rect = new Rect2i(i, j, pWidth + 1, Math.min(pSuggestionList.size(), CommandStickSuggestions.this.suggestionLineLimit) * 12);
+         int rectangleXStart = pXPos - 1;
+         int rectangleYStart = CommandStickSuggestions.this.anchorToBottom ? pYPos - 3 - Math.min(pSuggestionList.size(), CommandStickSuggestions.this.suggestionLineLimit) * 12 : pYPos;
+         this.rect = new Rect2i(rectangleXStart, rectangleYStart, pWidth + 1, Math.min(pSuggestionList.size(), CommandStickSuggestions.this.suggestionLineLimit) * 12);
          this.originalContents = CommandStickSuggestions.this.input.getValue();
          this.lastNarratedEntry = pNarrateFirstSuggestion ? -1 : 0;
          this.suggestionList = pSuggestionList;
