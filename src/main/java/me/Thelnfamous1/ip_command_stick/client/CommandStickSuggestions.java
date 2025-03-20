@@ -7,6 +7,8 @@ import com.google.common.collect.Lists;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -44,7 +46,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec2;
-import net.minecraftforge.registries.RegistryObject;
 import org.lwjgl.glfw.GLFW;
 import qouteall.imm_ptl.peripheral.CommandStickItem;
 
@@ -195,7 +196,7 @@ public class CommandStickSuggestions {
       } else {
          String s1 = currentInput.substring(0, cursorPosition);
          int lastWordIndex = getLastWordIndex(s1);
-         this.pendingSuggestions = SharedSuggestionProvider.suggestResource(CommandStickItem.REGISTRY.get().getValues(), new SuggestionsBuilder(s1, lastWordIndex), CommandStickItem.REGISTRY.get()::getKey, (data) -> {
+         this.pendingSuggestions = suggestResource(CommandStickItem.REGISTRY.get().getValues(), new SuggestionsBuilder(s1, lastWordIndex), CommandStickItem.REGISTRY.get()::getKey, (data) -> {
             return /*CommonComponents.joinLines(createTooltipLines(data))*/ Component.translatable(data.nameTranslationKey);
          });
          this.pendingSuggestions.thenRun(() -> {
@@ -210,6 +211,33 @@ public class CommandStickSuggestions {
          }
           */
       }
+   }
+
+   // Custom version of SharedSuggestionProvider.suggestResource that uses custom version of SharedSuggestionProvider.filterResources below
+   private static <T> CompletableFuture<Suggestions> suggestResource(Iterable<T> resources, SuggestionsBuilder pBuilder, Function<T, ResourceLocation> keyGetter, Function<T, Message> tooltipGetter) {
+      String remaining = pBuilder.getRemaining().toLowerCase(Locale.ROOT);
+      filterResources(resources, remaining, keyGetter, (resource) -> {
+         pBuilder.suggest(keyGetter.apply(resource).toString(), tooltipGetter.apply(resource));
+      });
+      return pBuilder.buildFuture();
+   }
+
+   private static <T> void filterResources(Iterable<T> pResources, String pInput, Function<T, ResourceLocation> keyGetter, Consumer<T> resourceConsumer) {
+      boolean hasColon = pInput.indexOf(':') > -1;
+
+      for(T resource : pResources) {
+         ResourceLocation key = keyGetter.apply(resource);
+         if (hasColon) {
+            String keyString = key.toString();
+            if (SharedSuggestionProvider.matchesSubStr(pInput, keyString)) {
+               resourceConsumer.accept(resource);
+            }
+         } else if (SharedSuggestionProvider.matchesSubStr(pInput, key.getNamespace())
+                 || key.getNamespace().equals(IPCommandStickMod.IMM_PTL_MODID) && SharedSuggestionProvider.matchesSubStr(pInput, key.getPath())) {
+            resourceConsumer.accept(resource);
+         }
+      }
+
    }
 
    private static List<Component> createTooltipLines(CommandStickItem.Data data){
