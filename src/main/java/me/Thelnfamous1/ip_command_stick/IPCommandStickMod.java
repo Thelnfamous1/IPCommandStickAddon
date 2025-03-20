@@ -11,6 +11,7 @@ import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkRegistry;
@@ -38,6 +39,7 @@ public class IPCommandStickMod {
 
     public IPCommandStickMod() {
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, IPCSConfig.SERVER_SPEC);
+        FMLJavaModLoadingContext.get().getModEventBus().register(IPCSConfig.class);
     }
 
     public static ResourceLocation resource(String path){
